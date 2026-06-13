@@ -101,9 +101,16 @@ public class MainActivity extends ComponentActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        // Set a standard Mobile Chrome user agent to prevent "Sign in to confirm you're not a robot"
-        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36");
+
+        // Define clean modern User Agents
+        final String mobileUserAgent = "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+        final String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+
+        // Set default mobile user agent
+        settings.setUserAgentString(mobileUserAgent);
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -114,7 +121,33 @@ public class MainActivity extends ComponentActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return false;
+                String url = request.getUrl().toString();
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return false; // Let WebView load it
+                }
+
+                try {
+                    android.content.Intent intent = android.content.Intent.parseUri(url, android.content.Intent.URI_INTENT_SCHEME);
+                    if (intent != null) {
+                        view.getContext().startActivity(intent);
+                        return true; // Redirection handled
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return true; // Safe check for unsupported custom schemes
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                if (url != null && url.contains("accounts.google.com")) {
+                    // Temporarily apply desktop agent to bypass Google's WebView blocking secure browser error
+                    view.getSettings().setUserAgentString(desktopUserAgent);
+                } else {
+                    // Restore modern Mobile Chrome user agent
+                    view.getSettings().setUserAgentString(mobileUserAgent);
+                }
             }
 
             @Override
@@ -136,6 +169,11 @@ public class MainActivity extends ComponentActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 swipeRefreshLayout.setRefreshing(false);
+
+                // Flush cookies to guarantee high sign-in persistence
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    CookieManager.getInstance().flush();
+                }
 
                 // Inject CSS to improve youtube miniplayer on regular webpages (e.g. padding and visibility)
                 String js = "javascript:(function() { " +
