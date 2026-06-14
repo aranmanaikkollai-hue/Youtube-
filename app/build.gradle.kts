@@ -11,9 +11,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.application"
+        applicationId = "com.aistudio.ytplayer.vqxsz"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
