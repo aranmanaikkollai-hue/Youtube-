@@ -5,11 +5,9 @@ workflows:
   android-debug-apk:
     name: Android Debug APK Build
     max_build_duration: 60
-    instance_type: linux_x2
+    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
     environment:
-      groups:
-        # You can define custom environment variables in Codemagic UI and group them here
-        # E.g., api_credentials
+      # Removed the empty groups key to fix the "none is not an allowed value" error
       vars:
         JAVA_VERSION: "17"
     triggering:
@@ -51,22 +49,18 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        on_failure: true
-        on_success: true
+        # Fixed email validation errors by placing preferences inside the correct nested 'notify' wrapper
+        notify:
+          success: true
+          failure: true
 
   android-release:
     name: Android Release Build (Unsigned/Signed)
     max_build_duration: 60
-    instance_type: linux_x2
+    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
     environment:
       groups:
-        # To sign release builds, configure Android keystore in Codemagic UI:
-        # Go to App settings > Environment variables and add:
-        # - CM_KEYSTORE (Secure File)
-        # - CM_KEYSTORE_PASSWORD (Keystore password)
-        # - CM_KEY_ALIAS (Key alias)
-        # - CM_KEY_PASSWORD (Key password)
-        # Reference: https://docs.codemagic.io/yaml-signing/android-code-signing/
+        # Kept because it maps a valid group name string below
         - keystore_credentials
       vars:
         JAVA_VERSION: "17"
@@ -118,5 +112,7 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        on_failure: true
-        on_success: true
+        # Fixed email validation errors here as well
+        notify:
+          success: true
+          failure: true
