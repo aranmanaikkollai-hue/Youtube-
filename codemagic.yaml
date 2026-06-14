@@ -5,9 +5,11 @@ workflows:
   android-debug-apk:
     name: Android Debug APK Build
     max_build_duration: 60
-    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
+    instance_type: linux_x2
     environment:
-      # Removed the empty groups key to fix the "none is not an allowed value" error
+      groups:
+        # You can define custom environment variables in Codemagic UI and group them here
+        # E.g., api_credentials
       vars:
         JAVA_VERSION: "17"
     triggering:
@@ -25,14 +27,12 @@ workflows:
       - name: Set up Java Version
         script: |
           echo "Setting up Java Version..."
-          if command -v jdk-switch &> /dev/null; then
-            jdk-switch use $JAVA_VERSION
-          elif command -v jenv &> /dev/null; then
-            jenv global $JAVA_VERSION || jenv global 17
-            export JAVA_HOME=$(jenv prefix)
+          if [ -x "/usr/libexec/java_home" ]; then
+            export JAVA_HOME=$(/usr/libexec/java_home -v 17) || true
             export PATH="$JAVA_HOME/bin:$PATH"
-          elif command -v sdk &> /dev/null; then
-            sdk use java 17-open || true
+          elif [ -d "/usr/lib/jvm/java-17-openjdk-amd64" ]; then
+            export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+            export PATH="$JAVA_HOME/bin:$PATH"
           fi
           echo "Active Java version:"
           java -version
@@ -49,18 +49,22 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        # Fixed email validation errors by placing preferences inside the correct nested 'notify' wrapper
-        notify:
-          success: true
-          failure: true
+        on_failure: true
+        on_success: true
 
   android-release:
     name: Android Release Build (Unsigned/Signed)
     max_build_duration: 60
-    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
+    instance_type: linux_x2
     environment:
       groups:
-        # Kept because it maps a valid group name string below
+        # To sign release builds, configure Android keystore in Codemagic UI:
+        # Go to App settings > Environment variables and add:
+        # - CM_KEYSTORE (Secure File)
+        # - CM_KEYSTORE_PASSWORD (Keystore password)
+        # - CM_KEY_ALIAS (Key alias)
+        # - CM_KEY_PASSWORD (Key password)
+        # Reference: https://docs.codemagic.io/yaml-signing/android-code-signing/
         - keystore_credentials
       vars:
         JAVA_VERSION: "17"
@@ -78,14 +82,12 @@ workflows:
       - name: Set up Java Version
         script: |
           echo "Setting up Java Version..."
-          if command -v jdk-switch &> /dev/null; then
-            jdk-switch use $JAVA_VERSION
-          elif command -v jenv &> /dev/null; then
-            jenv global $JAVA_VERSION || jenv global 17
-            export JAVA_HOME=$(jenv prefix)
+          if [ -x "/usr/libexec/java_home" ]; then
+            export JAVA_HOME=$(/usr/libexec/java_home -v 17) || true
             export PATH="$JAVA_HOME/bin:$PATH"
-          elif command -v sdk &> /dev/null; then
-            sdk use java 17-open || true
+          elif [ -d "/usr/lib/jvm/java-17-openjdk-amd64" ]; then
+            export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+            export PATH="$JAVA_HOME/bin:$PATH"
           fi
           echo "Active Java version:"
           java -version
@@ -112,7 +114,5 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        # Fixed email validation errors here as well
-        notify:
-          success: true
-          failure: true
+        on_failure: true
+        on_success: true

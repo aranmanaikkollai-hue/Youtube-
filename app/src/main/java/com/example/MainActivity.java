@@ -90,7 +90,11 @@ public class MainActivity extends ComponentActivity {
     }
 
     private void setupWebView() {
-        webView = new WebView(this);
+        Context webViewContext = this;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            webViewContext = createAttributionContext("play_music");
+        }
+        webView = new WebView(webViewContext);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
