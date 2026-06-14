@@ -5,9 +5,8 @@ workflows:
   android-debug-apk:
     name: Android Debug APK Build
     max_build_duration: 60
-    instance_type: linux_x2
+    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
     environment:
-      # Removed the empty groups block that caused the "none is not allowed" error
       vars:
         JAVA_VERSION: "17"
     triggering:
@@ -38,21 +37,13 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        # Removed the invalid boolean options. By default, Codemagic sends notifications to recipients.
 
   android-release:
     name: Android Release Build (Unsigned/Signed)
     max_build_duration: 60
-    instance_type: linux_x2
+    instance_type: mac_mini_m1 # Changed from linux_x2 to available free/base tier instance
     environment:
       groups:
-        # To sign release builds, configure Android keystore in Codemagic UI:
-        # Go to App settings > Environment variables and add:
-        # - CM_KEYSTORE (Secure File)
-        # - CM_KEYSTORE_PASSWORD (Keystore password)
-        # - CM_KEY_ALIAS (Key alias)
-        # - CM_KEY_PASSWORD (Key password)
-        # Reference: https://docs.codemagic.io/yaml-signing/android-code-signing/
         - keystore_credentials
       vars:
         JAVA_VERSION: "17"
@@ -93,4 +84,3 @@ workflows:
       email:
         recipients:
           - aranmanaikkollai@gmail.com
-        # Removed the invalid boolean options here as well to fix extra fields error
