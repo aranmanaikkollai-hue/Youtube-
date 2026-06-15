@@ -35,10 +35,6 @@ public class MainActivity extends ComponentActivity {
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
 
-    @Override
-    public String getAttributionTag() {
-        return "ytplayer_attribution";
-    }
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -53,6 +49,16 @@ public class MainActivity extends ComponentActivity {
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         fullscreenContainer = findViewById(R.id.fullscreenContainer);
         webViewContainer = findViewById(R.id.webViewContainer);
+
+        // Pre-create the WebView HTTP Cache Code Cache directory structure to prevent chromium warning logs on first run.
+        try {
+            java.io.File codeCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js/index-dir");
+            if (!codeCacheDir.exists()) {
+                codeCacheDir.mkdirs();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         setupWebView();
 

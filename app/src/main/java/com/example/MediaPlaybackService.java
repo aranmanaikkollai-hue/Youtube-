@@ -19,11 +19,6 @@ public class MediaPlaybackService extends Service {
     private Context serviceContext;
 
     @Override
-    public String getAttributionTag() {
-        return "ytplayer_attribution";
-    }
-
-    @Override
     public void onCreate() {
         super.onCreate();
         serviceContext = this;
@@ -33,7 +28,7 @@ public class MediaPlaybackService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, getNotification(), 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK */);
+            startForeground(NOTIFICATION_ID, getNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(NOTIFICATION_ID, getNotification());
         }
