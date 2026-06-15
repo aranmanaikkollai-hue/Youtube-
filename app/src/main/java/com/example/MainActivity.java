@@ -34,15 +34,21 @@ public class MainActivity extends ComponentActivity {
 
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
- 
-
 
     @Override
+    public String getAttributionTag() {
+        return "ytplayer_attribution";
+    }
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        startForegroundService(new android.content.Intent(this, MediaPlaybackService.class));
+        android.content.Intent serviceIntent = new android.content.Intent(this, MediaPlaybackService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
 
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         fullscreenContainer = findViewById(R.id.fullscreenContainer);
@@ -50,26 +56,14 @@ public class MainActivity extends ComponentActivity {
 
         setupWebView();
 
+        // Disabling SwipeRefreshLayout to prevent intercepting touches in YouTube's internal scrolling container.
+        // This fixes the issue where the mini-player disappears or scrolling doesn't work.
+        swipeRefreshLayout.setEnabled(false);
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (webView != null) {
                 webView.reload();
             }
         });
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            webView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-                String url = webView.getUrl();
-                boolean isShorts = url != null && url.contains("/shorts/");
-                swipeRefreshLayout.setEnabled(scrollY == 0 && !isShorts);
-            });
-        } else {
-            // Fallback for older devices if getScrollY is needed
-            webView.getViewTreeObserver().addOnScrollChangedListener(() -> {
-                String url = webView.getUrl();
-                boolean isShorts = url != null && url.contains("/shorts/");
-                swipeRefreshLayout.setEnabled(webView.getScrollY() == 0 && !isShorts);
-            });
-        }
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -126,7 +120,7 @@ public class MainActivity extends ComponentActivity {
         // Define clean modern User Agents
         // MacOS UA for login helps bypass "Secure Browser" blocks in WebViews
         final String mobileUserAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
-        final String desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+        final String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
         // Set default mobile user agent
         settings.setUserAgentString(mobileUserAgent);
@@ -142,10 +136,19 @@ public class MainActivity extends ComponentActivity {
         }
 
         webView.setWebViewClient(new WebViewClient() {
+            @SuppressWarnings("deprecation")
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleUrlLoading(view, url);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                
+                return handleUrlLoading(view, url);
+            }
+
+            private boolean handleUrlLoading(WebView view, String url) {
                 // Track Google login URLs early to switch User Agent if needed
                 if (isLoginUrl(url)) {
                     view.getSettings().setUserAgentString(desktopUserAgent);
@@ -189,11 +192,7 @@ public class MainActivity extends ComponentActivity {
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
                 super.doUpdateVisitedHistory(view, url, isReload);
-                if (url != null && url.contains("/shorts/")) {
-                    swipeRefreshLayout.setEnabled(false);
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    swipeRefreshLayout.setEnabled(view.getScrollY() == 0);
-                }
+                // SwipeRefreshLayout is intentionally kept disabled
             }
 
             @Override
@@ -226,20 +225,25 @@ public class MainActivity extends ComponentActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                // If the app tries to open a new window (like a popup for social login), load it in the same WebView
                 WebView.HitTestResult result = view.getHitTestResult();
                 String data = result.getExtra();
                 if (data != null) {
                     view.loadUrl(data);
                 } else {
-                    // Fallback using the message transport
-                    WebView transportWebView = new WebView(view.getContext());
+                    Context webViewContext = view.getContext();
+                    WebView transportWebView = new WebView(webViewContext);
                     transportWebView.setWebViewClient(new WebViewClient() {
+                        @SuppressWarnings("deprecation")
                         @Override
-                        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                            super.onPageStarted(view, url, favicon);
+                        public boolean shouldOverrideUrlLoading(WebView view, String url) {
                             webView.loadUrl(url);
-                            transportWebView.destroy();
+                            return true;
+                        }
+
+                        @Override
+                        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                            webView.loadUrl(request.getUrl().toString());
+                            return true;
                         }
                     });
                     ((WebView.WebViewTransport) resultMsg.obj).setWebView(transportWebView);
@@ -298,12 +302,20 @@ public class MainActivity extends ComponentActivity {
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            String url = webView.getUrl();
+            PipHelper.enterPip(this, webView.getUrl());
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            enterPictureInPictureMode();
+        }
+    }
+
+    private static class PipHelper {
+        @android.annotation.TargetApi(Build.VERSION_CODES.O)
+        static void enterPip(android.app.Activity activity, String url) {
             PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
             if (url != null && url.contains("/watch?")) {
                 builder.setAspectRatio(new android.util.Rational(16, 9));
             }
-            enterPictureInPictureMode(builder.build());
+            activity.enterPictureInPictureMode(builder.build());
         }
     }
 
@@ -311,7 +323,6 @@ public class MainActivity extends ComponentActivity {
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
         if (isInPictureInPictureMode) {
-            swipeRefreshLayout.setEnabled(false);
             String js = "javascript:(function() { " +
                     "document.body.classList.add('in-pip'); " +
                     "var style = document.createElement('style'); " +
@@ -324,13 +335,6 @@ public class MainActivity extends ComponentActivity {
                     "})()";
             webView.evaluateJavascript(js, null);
         } else {
-            String url = webView.getUrl();
-            boolean isShorts = url != null && url.contains("/shorts/");
-            if (isShorts) {
-                swipeRefreshLayout.setEnabled(false);
-            } else {
-                swipeRefreshLayout.setEnabled(webView.getScrollY() == 0);
-            }
             String js = "javascript:(function() { " +
                     "document.body.classList.remove('in-pip'); " +
                     "var style = document.getElementById('pip-style'); " +

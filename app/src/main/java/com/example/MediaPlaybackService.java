@@ -15,19 +15,25 @@ public class MediaPlaybackService extends Service {
 
     private static final String CHANNEL_ID = "media_playback_channel";
     private static final int NOTIFICATION_ID = 1;
- 
 
+    private Context serviceContext;
+
+    @Override
+    public String getAttributionTag() {
+        return "ytplayer_attribution";
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        serviceContext = this;
         createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, getNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            startForeground(NOTIFICATION_ID, getNotification(), 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK */);
         } else {
             startForeground(NOTIFICATION_ID, getNotification());
         }
@@ -41,12 +47,19 @@ public class MediaPlaybackService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannelHelper.createChannel(serviceContext, CHANNEL_ID);
+        }
+    }
+
+    private static class NotificationChannelHelper {
+        @android.annotation.TargetApi(Build.VERSION_CODES.O)
+        static void createChannel(Context context, String channelId) {
             NotificationChannel serviceChannel = new NotificationChannel(
-                    CHANNEL_ID,
+                    channelId,
                     "Media Playback Channel",
                     NotificationManager.IMPORTANCE_LOW
             );
-            NotificationManager manager = getSystemService(NotificationManager.class);
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
             }
@@ -54,10 +67,10 @@ public class MediaPlaybackService extends Service {
     }
 
     private Notification getNotification() {
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        return new NotificationCompat.Builder(serviceContext, CHANNEL_ID)
                 .setContentTitle("Playing Media")
                 .setContentText("Background playback active")
-                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .build();
     }
 }
