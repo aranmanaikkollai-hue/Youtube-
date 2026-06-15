@@ -34,6 +34,8 @@ public class MainActivity extends ComponentActivity {
 
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
+ 
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,12 +91,20 @@ public class MainActivity extends ComponentActivity {
         }
     }
 
+    private boolean isLoginUrl(String url) {
+        if (url == null) return false;
+        String lowerUrl = url.toLowerCase();
+        return lowerUrl.contains("accounts.google") || 
+               lowerUrl.contains("google.com/accounts") || 
+               lowerUrl.contains("signin/v2") || 
+               lowerUrl.contains("oauth2") ||
+               lowerUrl.contains("servicelogin") ||
+               lowerUrl.contains("youtube.com/signin") ||
+               lowerUrl.contains("youtube.com/accounts");
+    }
+
     private void setupWebView() {
-        Context webViewContext = this;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            webViewContext = createAttributionContext("play_music");
-        }
-        webView = new WebView(webViewContext);
+        webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -106,15 +116,24 @@ public class MainActivity extends ComponentActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setLoadWithOverviewMode(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
         settings.setUseWideViewPort(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setSupportMultipleWindows(true);
 
         // Define clean modern User Agents
-        final String mobileUserAgent = "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
-        final String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+        // MacOS UA for login helps bypass "Secure Browser" blocks in WebViews
+        final String mobileUserAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+        final String desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
         // Set default mobile user agent
         settings.setUserAgentString(mobileUserAgent);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -126,6 +145,14 @@ public class MainActivity extends ComponentActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+                
+                // Track Google login URLs early to switch User Agent if needed
+                if (isLoginUrl(url)) {
+                    view.getSettings().setUserAgentString(desktopUserAgent);
+                } else {
+                    view.getSettings().setUserAgentString(mobileUserAgent);
+                }
+
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     return false; // Let WebView load it
                 }
@@ -145,11 +172,11 @@ public class MainActivity extends ComponentActivity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                if (url != null && url.contains("accounts.google.com")) {
-                    // Temporarily apply desktop agent to bypass Google's WebView blocking secure browser error
+                // Switch User Agent based on whether we are signing in or browsing
+                if (isLoginUrl(url)) {
                     view.getSettings().setUserAgentString(desktopUserAgent);
                 } else {
-                    // Restore modern Mobile Chrome user agent
+                    // Ensure we are using mobile agent for YouTube and others
                     view.getSettings().setUserAgentString(mobileUserAgent);
                 }
             }
@@ -179,13 +206,15 @@ public class MainActivity extends ComponentActivity {
                     CookieManager.getInstance().flush();
                 }
 
-                // Inject CSS to improve youtube miniplayer on regular webpages (e.g. padding and visibility)
+                // Inject CSS to improve general visibility
                 String js = "javascript:(function() { " +
                         "if (!document.getElementById('custom-tweaks')) {" +
                         "  var style = document.createElement('style'); " +
                         "  style.id = 'custom-tweaks'; " +
                         "  style.innerHTML = '" +
-                        "    ytm-miniplayer { bottom: env(safe-area-inset-bottom, 20px) !important; z-index: 9999 !important; } " +
+                        "    /* Ensure bottom bar is visible and padded for safe area */ " +
+                        "    ytm-pivot-bar-renderer { bottom: 0 !important; z-index: 100 !important; visibility: visible !important; display: flex !important; } " +
+                        "    body { padding-bottom: 48px !important; } " +
                         "  '; " +
                         "  document.head.appendChild(style); " +
                         "}" +
@@ -195,6 +224,30 @@ public class MainActivity extends ComponentActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                // If the app tries to open a new window (like a popup for social login), load it in the same WebView
+                WebView.HitTestResult result = view.getHitTestResult();
+                String data = result.getExtra();
+                if (data != null) {
+                    view.loadUrl(data);
+                } else {
+                    // Fallback using the message transport
+                    WebView transportWebView = new WebView(view.getContext());
+                    transportWebView.setWebViewClient(new WebViewClient() {
+                        @Override
+                        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                            super.onPageStarted(view, url, favicon);
+                            webView.loadUrl(url);
+                            transportWebView.destroy();
+                        }
+                    });
+                    ((WebView.WebViewTransport) resultMsg.obj).setWebView(transportWebView);
+                    resultMsg.sendToTarget();
+                }
+                return true;
+            }
+
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
                 super.onShowCustomView(view, callback);
