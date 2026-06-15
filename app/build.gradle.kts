@@ -13,7 +13,7 @@ android {
     defaultConfig {
         applicationId = "com.aistudio.ytplayer.vqxsz"
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 33
         versionCode = 1
         versionName = "1.0"
 
