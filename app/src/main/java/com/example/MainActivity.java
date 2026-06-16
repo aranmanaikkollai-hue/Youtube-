@@ -307,10 +307,16 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            PipHelper.enterPip(this, webView.getUrl());
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            enterPictureInPictureMode();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                    PipHelper.enterPip(this, webView != null ? webView.getUrl() : null);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                enterPictureInPictureMode();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

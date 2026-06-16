@@ -65,7 +65,7 @@ public class MediaPlaybackService extends Service {
         return new NotificationCompat.Builder(serviceContext, CHANNEL_ID)
                 .setContentTitle("Playing Media")
                 .setContentText("Background playback active")
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .build();
     }
 }
