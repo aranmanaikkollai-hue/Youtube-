@@ -52,9 +52,13 @@ public class MainActivity extends ComponentActivity {
 
         // Pre-create the WebView HTTP Cache Code Cache directory structure to prevent chromium warning logs on first run.
         try {
-            java.io.File codeCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js/index-dir");
-            if (!codeCacheDir.exists()) {
-                codeCacheDir.mkdirs();
+            java.io.File jsCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js/index-dir");
+            if (!jsCacheDir.exists()) {
+                jsCacheDir.mkdirs();
+            }
+            java.io.File wasmCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/wasm/index-dir");
+            if (!wasmCacheDir.exists()) {
+                wasmCacheDir.mkdirs();
             }
         } catch (Exception e) {
             e.printStackTrace();
