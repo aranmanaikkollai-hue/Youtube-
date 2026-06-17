@@ -1,181 +1,34 @@
-# Codemagic CI/CD configuration for Android APK and Bundle building.
-# Reference: https://docs.codemagic.io/yaml-basic-configuration/yaml-getting-started/
-
-workflows:
-  android-debug-apk:
-    name: Android Debug APK Build
-    max_build_duration: 60
-    instance_type: mac_mini_m1
-    environment:
-      vars:
-        JAVA_VERSION: "17"
-    triggering:
-      events:
-        - push
-        - pull_request
-      branch_patterns:
-        - pattern: 'main'
-          include: true
-          source: true
-        - pattern: 'master'
-          include: true
-          source: true
-    scripts:
-      - name: Set up Java Version
-        script: |
-          echo "Setting up Java Version..."
-          if command -v jdk-switch &> /dev/null; then
-            jdk-switch use $JAVA_VERSION
-          elif command -v jenv &> /dev/null; then
-            jenv global $JAVA_VERSION || jenv global 17
-            export JAVA_HOME=$(jenv prefix)
-            export PATH="$JAVA_HOME/bin:$PATH"
-          elif command -v sdk &> /dev/null; then
-            sdk use java 17-open || true
-          fi
-          echo "Active Java version:"
-          java -version
-
-      - name: Set up local.properties
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-
-      - name: Generate Debug Keystore
-        script: |
-          keytool -genkey -v             -keystore debug.keystore             -alias androiddebugkey             -keyalg RSA             -keysize 2048             -validity 10000             -storepass android             -keypass android             -dname "CN=Android Debug,O=Android,C=US"
-
-      # ROBUST FIX: Download gradle-wrapper.jar with verification
       - name: Download Gradle Wrapper JAR
         script: |
           mkdir -p gradle/wrapper
-
-          # Remove any corrupt existing file
           rm -f gradle/wrapper/gradle-wrapper.jar
-
-          # Download from official Gradle services with proper flags
-          echo "Downloading gradle-wrapper.jar from services.gradle.org..."
-          curl -fsSL --retry 3 --connect-timeout 10             -o gradle/wrapper/gradle-wrapper.jar             https://services.gradle.org/distributions/gradle-9.3.1-wrapper.jar
-
-          # Verify the download
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "ERROR: Download failed - file not created"
-            exit 1
-          fi
-
-          FILE_SIZE=$(stat -f%z "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || stat -c%s "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || echo "0")
-          echo "Downloaded file size: $FILE_SIZE bytes"
-
-          if [ "$FILE_SIZE" -lt 1000 ]; then
-            echo "ERROR: File too small - likely an error page, not a JAR"
-            cat gradle/wrapper/gradle-wrapper.jar | head -5
-            exit 1
-          fi
-
-          # Check JAR magic number (PK)
-          MAGIC=$(xxd -l 4 "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || od -A n -t x1 -N 4 "gradle/wrapper/gradle-wrapper.jar")
-          echo "File magic bytes: $MAGIC"
-
-          echo "Wrapper JAR ready!"
-
-      - name: Build Android Debug APK
-        script: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-    artifacts:
-      - app/build/outputs/apk/debug/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - aranmanaikkollai@gmail.com
-        notify:
-          success: true
-          failure: true
-
-  android-release:
-    name: Android Release Build (Unsigned/Signed)
-    max_build_duration: 60
-    instance_type: mac_mini_m1
-    environment:
-      groups:
-        - keystore_credentials
-      vars:
-        JAVA_VERSION: "17"
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'main'
-          include: true
-          source: true
-        - pattern: 'release/*'
-          include: true
-          source: true
-    scripts:
-      - name: Set up Java Version
-        script: |
-          echo "Setting up Java Version..."
-          if command -v jdk-switch &> /dev/null; then
-            jdk-switch use $JAVA_VERSION
-          elif command -v jenv &> /dev/null; then
-            jenv global $JAVA_VERSION || jenv global 17
-            export JAVA_HOME=$(jenv prefix)
-            export PATH="$JAVA_HOME/bin:$PATH"
-          elif command -v sdk &> /dev/null; then
-            sdk use java 17-open || true
-          fi
-          echo "Active Java version:"
-          java -version
-
-      - name: Set up local.properties
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-
-      - name: Base64 decode Keystore if configured
-        script: |
-          if [ -n "$CM_KEYSTORE" ]; then
-            echo "Keystore detected. Base64 decoding..."
-            echo "$CM_KEYSTORE" | base64 --decode > app/keystore.jks
+          
+          # Try multiple sources for the wrapper JAR
+          echo "Attempting download from GitHub raw..."
+          if curl -fsSL --retry 2 --connect-timeout 15 \
+            -o gradle/wrapper/gradle-wrapper.jar \
+            https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar; then
+            echo "Downloaded from GitHub raw successfully"
           else
-            echo "Signing keys not configured in Codemagic environment. Applet will build custom unsigned release."
+            echo "GitHub raw failed, trying gradle-distributions releases..."
+            curl -fsSL --retry 2 --connect-timeout 15 \
+              -o gradle/wrapper/gradle-wrapper.jar \
+              https://github.com/gradle/gradle-distributions/releases/download/v8.13.0/gradle-8.13.0-wrapper.jar
           fi
-
-      - name: Download Gradle Wrapper JAR
-        script: |
-          mkdir -p gradle/wrapper
-          rm -f gradle/wrapper/gradle-wrapper.jar
-
-          echo "Downloading gradle-wrapper.jar from services.gradle.org..."
-          curl -fsSL --retry 3 --connect-timeout 10             -o gradle/wrapper/gradle-wrapper.jar             https://services.gradle.org/distributions/gradle-9.3.1-wrapper.jar
-
+          
+          # Verify
           if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "ERROR: Download failed"
+            echo "ERROR: All download attempts failed"
             exit 1
           fi
-
+          
           FILE_SIZE=$(stat -f%z "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || stat -c%s "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || echo "0")
-          echo "Downloaded file size: $FILE_SIZE bytes"
-
+          echo "File size: $FILE_SIZE bytes"
+          
           if [ "$FILE_SIZE" -lt 1000 ]; then
-            echo "ERROR: File too small"
+            echo "ERROR: File too small, likely an error page"
+            cat gradle/wrapper/gradle-wrapper.jar | head -3
             exit 1
           fi
-
+          
           echo "Wrapper JAR ready!"
-
-      - name: Build Android Release Artifacts
-        script: |
-          chmod +x gradlew
-          ./gradlew assembleRelease
-
-    artifacts:
-      - app/build/outputs/apk/release/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - aranmanaikkollai@gmail.com
-        notify:
-          success: true
-          failure: true
