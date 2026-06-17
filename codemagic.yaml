@@ -71,7 +71,7 @@ workflows:
             exit 1
           fi
 
-          # Check JAR magic number (PK)
+          # Check JAR magic number (PK)
           MAGIC=$(xxd -l 4 "gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || od -A n -t x1 -N 4 "gradle/wrapper/gradle-wrapper.jar")
           echo "File magic bytes: $MAGIC"
 

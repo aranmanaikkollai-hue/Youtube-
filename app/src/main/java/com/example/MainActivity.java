@@ -35,6 +35,7 @@ public class MainActivity extends ComponentActivity {
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
 
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -52,11 +53,11 @@ public class MainActivity extends ComponentActivity {
 
         // Pre-create the WebView HTTP Cache Code Cache directory structure to prevent chromium warning logs on first run.
         try {
-            java.io.File jsCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js/index-dir");
+            java.io.File jsCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js");
             if (!jsCacheDir.exists()) {
                 jsCacheDir.mkdirs();
             }
-            java.io.File wasmCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/wasm/index-dir");
+            java.io.File wasmCacheDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/wasm");
             if (!wasmCacheDir.exists()) {
                 wasmCacheDir.mkdirs();
             }
