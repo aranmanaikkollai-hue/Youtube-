@@ -167,11 +167,10 @@ workflows:
       - name: Build Android Release Artifacts
         script: |
           chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease
+          ./gradlew assembleRelease
 
     artifacts:
       - app/build/outputs/apk/release/*.apk
-      - app/build/outputs/bundle/release/*.aab
 
     publishing:
       email:
