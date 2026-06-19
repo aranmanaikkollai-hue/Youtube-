@@ -96,18 +96,6 @@ public class MainActivity extends ComponentActivity {
         }
     }
 
-    private boolean isLoginUrl(String url) {
-        if (url == null) return false;
-        String lowerUrl = url.toLowerCase();
-        return lowerUrl.contains("accounts.google") || 
-               lowerUrl.contains("google.com/accounts") || 
-               lowerUrl.contains("signin/v2") || 
-               lowerUrl.contains("oauth2") ||
-               lowerUrl.contains("servicelogin") ||
-               lowerUrl.contains("youtube.com/signin") ||
-               lowerUrl.contains("youtube.com/accounts");
-    }
-
     private void setupWebView() {
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
@@ -128,13 +116,13 @@ public class MainActivity extends ComponentActivity {
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setSupportMultipleWindows(true);
 
-        // Define clean modern User Agents
-        // MacOS UA for login helps bypass "Secure Browser" blocks in WebViews
-        final String mobileUserAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
-        final String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-
-        // Set default mobile user agent
-        settings.setUserAgentString(mobileUserAgent);
+        // Dynamically get the default User-Agent and strip the "; wv" (WebView) identifier.
+        // Also remove "Version/4.0" which is another telltale sign of Android WebView.
+        // This ensures the Chrome version in the UA matches the actual rendering engine,
+        // which prevents Google's bot-detection from blocking sign-ins (Error 403: disallowed_useragent).
+        String defaultUserAgent = settings.getUserAgentString();
+        String safeUserAgent = defaultUserAgent.replace("; wv", "").replace("Version/4.0 ", "");
+        settings.setUserAgentString(safeUserAgent);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -160,13 +148,6 @@ public class MainActivity extends ComponentActivity {
             }
 
             private boolean handleUrlLoading(WebView view, String url) {
-                // Track Google login URLs early to switch User Agent if needed
-                if (isLoginUrl(url)) {
-                    view.getSettings().setUserAgentString(desktopUserAgent);
-                } else {
-                    view.getSettings().setUserAgentString(mobileUserAgent);
-                }
-
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     return false; // Let WebView load it
                 }
@@ -186,13 +167,6 @@ public class MainActivity extends ComponentActivity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                // Switch User Agent based on whether we are signing in or browsing
-                if (isLoginUrl(url)) {
-                    view.getSettings().setUserAgentString(desktopUserAgent);
-                } else {
-                    // Ensure we are using mobile agent for YouTube and others
-                    view.getSettings().setUserAgentString(mobileUserAgent);
-                }
             }
 
             @Override

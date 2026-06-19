@@ -7,7 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <attribution android:tag="@string/empty" android:label="@string/app_name" />
+    <attribution android:tag=" " android:label="@string/app_name" />
+    <attribution android:tag="null" android:label="@string/app_name" />
+    <attribution android:tag="WebView" android:label="@string/app_name" />
 
     <application
         android:hardwareAccelerated="true"

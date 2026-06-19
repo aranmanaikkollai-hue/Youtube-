@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">YouTube</string>
-    <string name="empty_attribution_tag"></string>
+    <string name="empty"></string>
 </resources>
