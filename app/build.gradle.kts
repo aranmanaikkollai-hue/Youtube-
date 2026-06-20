@@ -86,7 +86,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation "androidx.datastore:datastore-preferences:1.0.0"
     // implementation(libs.androidx.room.ktx)
     // implementation(libs.androidx.room.runtime)
     implementation(libs.converter.moshi)
@@ -97,6 +96,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation(libs.androidx.media)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
