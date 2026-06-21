@@ -25,9 +25,14 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.graphics.Color;
+import android.annotation.SuppressLint;
+import android.view.MotionEvent;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends ComponentActivity {
 
@@ -37,6 +42,7 @@ public class MainActivity extends ComponentActivity {
 
     private FrameLayout fullscreenContainer;
     private FrameLayout webViewContainer;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private float density;
     
     private ImageButton btnModeToggle;
@@ -72,7 +78,7 @@ public class MainActivity extends ComponentActivity {
         super.onCreate(savedInstanceState);
         
         // Workaround for Chromium Code Cache warning: ensure these exist before WebView init
-        ensureCodeCacheDirs();
+        startCodeCacheGuard();
 
         setContentView(R.layout.activity_main);
         
@@ -85,11 +91,34 @@ public class MainActivity extends ComponentActivity {
 
         fullscreenContainer = findViewById(R.id.fullscreenContainer);
         webViewContainer = findViewById(R.id.webViewContainer);
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         btnModeToggle = findViewById(R.id.btnModeToggle);
         btnBack = findViewById(R.id.btnBack);
         topControlsContainer = findViewById(R.id.topControlsContainer);
 
         density = getResources().getDisplayMetrics().density;
+
+        // Tune SwipeRefreshLayout design and sensitivity to avoid touch conflict
+        swipeRefreshLayout.setColorSchemeColors(Color.parseColor("#FF0000"));
+        swipeRefreshLayout.setProgressBackgroundColorSchemeColor(Color.parseColor("#212121"));
+        swipeRefreshLayout.setDistanceToTriggerSync((int) (180 * density));
+
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            WebView currentWebView = getCurrentWebView();
+            if (currentWebView != null) {
+                currentWebView.reload();
+            } else {
+                swipeRefreshLayout.setRefreshing(false);
+            }
+        });
+
+        swipeRefreshLayout.setOnChildScrollUpCallback((parent, child) -> {
+            if (customView != null) {
+                return true; // Disable pull-down refresh during fullscreen video playback
+            }
+            WebView currentWebView = getCurrentWebView();
+            return currentWebView != null && currentWebView.canScrollVertically(-1);
+        });
 
         btnBack.setOnClickListener(v -> {
             WebView currentWebView = getCurrentWebView();
@@ -98,7 +127,10 @@ public class MainActivity extends ComponentActivity {
                 updateControlsState();
             }
         });
+        
         btnModeToggle.setOnClickListener(v -> switchMode(!isMusicMode));
+        
+        setupDraggableControls();
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(MediaPlaybackService.ACTION_CMD_PLAY);
@@ -153,11 +185,65 @@ public class MainActivity extends ComponentActivity {
         updateControlsState();
     }
 
+    @SuppressLint("ClickableViewAccessibility")
+    private void setupDraggableControls() {
+        View.OnTouchListener dragListener = new View.OnTouchListener() {
+            private float dX, dY;
+            private float startX, startY;
+            private boolean isDragging;
+
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        dX = topControlsContainer.getX() - event.getRawX();
+                        dY = topControlsContainer.getY() - event.getRawY();
+                        startX = event.getRawX();
+                        startY = event.getRawY();
+                        isDragging = false;
+                        return false; // let the button process the down event for click
+                    case MotionEvent.ACTION_MOVE:
+                        float diffX = event.getRawX() - startX;
+                        float diffY = event.getRawY() - startY;
+                        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+                            isDragging = true;
+                            // Reset pressed state so click doesn't trigger visually
+                            view.setPressed(false);
+                            
+                            // Bounds checking
+                            float newX = event.getRawX() + dX;
+                            float newY = event.getRawY() + dY;
+                            
+                            View parent = (View) topControlsContainer.getParent();
+                            if (newX < 0) newX = 0;
+                            if (newY < 0) newY = 0;
+                            if (newX > parent.getWidth() - topControlsContainer.getWidth()) newX = parent.getWidth() - topControlsContainer.getWidth();
+                            if (newY > parent.getHeight() - topControlsContainer.getHeight()) newY = parent.getHeight() - topControlsContainer.getHeight();
+                            
+                            topControlsContainer.setX(newX);
+                            topControlsContainer.setY(newY);
+                            return true; // We consumed this event because we are dragging
+                        }
+                        break;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (isDragging) {
+                            return true; // Click event shouldn't be handled
+                        }
+                        break;
+                }
+                return false; // Not dragging, let it process click
+            }
+        };
+        btnModeToggle.setOnTouchListener(dragListener);
+        btnBack.setOnTouchListener(dragListener);
+    }
+
     private void updateModeButtons() {
         if (isMusicMode) {
-            btnModeToggle.setImageResource(android.R.drawable.ic_media_pause);
+            btnModeToggle.setImageResource(R.drawable.ic_video);
         } else {
-            btnModeToggle.setImageResource(android.R.drawable.ic_media_play);
+            btnModeToggle.setImageResource(R.drawable.ic_music);
         }
     }
 
@@ -168,10 +254,8 @@ public class MainActivity extends ComponentActivity {
                 boolean canGoBack = currentWebView.canGoBack();
                 if (canGoBack) {
                     btnBack.setVisibility(View.VISIBLE);
-                    btnModeToggle.setVisibility(View.GONE);
                 } else {
                     btnBack.setVisibility(View.GONE);
-                    btnModeToggle.setVisibility(View.VISIBLE);
                 }
             }
         });
@@ -320,7 +404,6 @@ public class MainActivity extends ComponentActivity {
                         url.contains("youtube.com/api/stats/ads") || 
                         url.contains("stats/ads") || 
                         url.contains("/ptracking") || 
-                        url.contains("youtubei/v1/log_event") || 
                         url.contains("google-analytics") || 
                         url.contains("googlesyndication") || 
                         url.contains("adservice.google")) {
@@ -346,6 +429,9 @@ public class MainActivity extends ComponentActivity {
                 super.onPageFinished(view, url);
                 updateControlsState();
                 injectScripts(view);
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
+                }
             }
         });
 
@@ -361,6 +447,9 @@ public class MainActivity extends ComponentActivity {
                 customView = view;
                 customViewCallback = callback;
                 
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setEnabled(false);
+                }
                 webViewContainer.setVisibility(View.GONE);
                 fullscreenContainer.setVisibility(View.VISIBLE);
                 fullscreenContainer.addView(customView);
@@ -382,6 +471,9 @@ public class MainActivity extends ComponentActivity {
                 fullscreenContainer.setVisibility(View.GONE);
                 fullscreenContainer.removeView(customView);
                 webViewContainer.setVisibility(View.VISIBLE);
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setEnabled(true);
+                }
                 
                 customView = null;
                 customViewCallback = null;
@@ -412,20 +504,20 @@ public class MainActivity extends ComponentActivity {
         }
         
         if (adblockEnabled) {
-            // CSS styles to hide ads immediately
+            // CSS styles to hide ads and intrusive "Open in App" promotions immediately
             jsBuilder.append("if (!document.getElementById('adblock-styles')) { ")
                 .append("  var style = document.createElement('style'); ")
                 .append("  style.id = 'adblock-styles'; ")
-                .append("  style.innerHTML = '.ad-container, .ad-div, #masthead-ad, .ad-image, .ytd-carousel-ad-render, .ad-placement, .ytp-ad-overlay-container, #player-ads, .ytp-ad-message-container, .ytmusic-carousel-shelf-basic-renderer .ytmusic-ad-banner, #ad-slot, .ytp-ad-progress-list, .ytp-ad-player-overlay-instream-card, ytmusic-mealbar-promo-renderer, ytd-mealbar-promo-renderer, .video-ads, .ytp-ad-overlay-slot { display: none !important; }'; ")
+                .append("  style.innerHTML = '.ad-container, .ad-div, #masthead-ad, .ad-image, .ytd-carousel-ad-render, .ad-placement, .ytp-ad-overlay-container, #player-ads, .ytp-ad-message-container, .ytmusic-carousel-shelf-basic-renderer .ytmusic-ad-banner, #ad-slot, .ytp-ad-progress-list, .ytp-ad-player-overlay-instream-card, ytmusic-mealbar-promo-renderer, ytd-mealbar-promo-renderer, .video-ads, .ytp-ad-overlay-slot, ytm-mealbar-promo-renderer, ytm-app-promo-launcher, ytm-app-promo-renderer, .ytm-app-promo, .ytm-app-promo-bar, yt-smart-app-banner, .app-promo-banner, #app-bar { display: none !important; }'; ")
                 .append("  document.head.appendChild(style); ")
                 .append("} ");
             
-            // Continuous loop to check, speed up, and skip video ads
-            jsBuilder.append("if (!window.adblockIntervalStarted) { ")
-                .append("  window.adblockIntervalStarted = true; ")
-                .append("  setInterval(function() { ")
-                .append("    var isAdActive = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-overlay-open, .ytp-ad-player-overlay-layout'); ")
-                .append("    var video = document.querySelector('video'); ")
+            // Periodic check to speed up and skip video ads and promotions without freezing UI
+            jsBuilder.append("if (!window.adblockStarted) { ")
+                .append("  window.adblockStarted = true; ")
+                .append("  function processAdsAndPromos() { ")
+                .append("    var isAdActive = document.querySelector(\".ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-overlay-open, .ytp-ad-player-overlay-layout\"); ")
+                .append("    var video = document.querySelector(\"video\"); ")
                 .append("    if (isAdActive && video) { ")
                 .append("      video.muted = true; ")
                 .append("      video.playbackRate = 16.0; ")
@@ -433,11 +525,16 @@ public class MainActivity extends ComponentActivity {
                 .append("        video.currentTime = video.duration - 0.1; ")
                 .append("      } ")
                 .append("    } ")
-                .append("    var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-text, .ytp-skip-ad-button, .ytp-ad-skip-button-slot'); ")
+                .append("    var skipBtn = document.querySelector(\".ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-text, .ytp-skip-ad-button, .ytp-ad-skip-button-slot\"); ")
                 .append("    if (skipBtn) { ")
                 .append("      skipBtn.click(); ")
                 .append("    } ")
-                .append("  }, 150); ")
+                .append("    var promoDismissBtn = document.querySelector(\"ytm-mealbar-promo-renderer #dismiss-button, ytd-mealbar-promo-renderer #dismiss-button, .ytm-mealbar-promo-renderer #dismiss-button\"); ")
+                .append("    if (promoDismissBtn) { ")
+                .append("      promoDismissBtn.click(); ")
+                .append("    } ")
+                .append("  } ")
+                .append("  setInterval(processAdsAndPromos, 500); ")
                 .append("} ");
         }
         
@@ -446,9 +543,27 @@ public class MainActivity extends ComponentActivity {
         webView.evaluateJavascript(jsBuilder.toString(), null);
     }
     
+    private void startCodeCacheGuard() {
+        new Thread(() -> {
+            long startTime = System.currentTimeMillis();
+            // Continuously protect and enforce directories existence for the first 15 seconds of startup
+            while (System.currentTimeMillis() - startTime < 15000) {
+                ensureCodeCacheDirs();
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }).start();
+    }
+
     private void ensureCodeCacheDirs() {
         try {
-            java.io.File jsDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/js");
+            java.io.File cacheDir = getCacheDir();
+            if (cacheDir == null) return;
+
+            java.io.File jsDir = new java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js");
             if (!jsDir.exists()) {
                 jsDir.mkdirs();
             }
@@ -457,7 +572,7 @@ public class MainActivity extends ComponentActivity {
                 jsNoMedia.createNewFile();
             }
 
-            java.io.File wasmDir = new java.io.File(getCacheDir(), "WebView/Default/HTTP Cache/Code Cache/wasm");
+            java.io.File wasmDir = new java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm");
             if (!wasmDir.exists()) {
                 wasmDir.mkdirs();
             }
@@ -466,7 +581,7 @@ public class MainActivity extends ComponentActivity {
                 wasmNoMedia.createNewFile();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            // Silently ignore during active parallel creation checks
         }
     }
 

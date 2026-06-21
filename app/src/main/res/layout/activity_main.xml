@@ -9,12 +9,18 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <FrameLayout
-            android:id="@+id/webViewContainer"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipeRefreshLayout"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
-            
-        </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/webViewContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                
+            </FrameLayout>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 
 
@@ -31,20 +37,21 @@
     <LinearLayout
         android:id="@+id/topControlsContainer"
         android:layout_width="wrap_content"
-        android:layout_height="40dp"
+        android:layout_height="44dp"
         android:layout_alignParentTop="true"
         android:layout_alignParentStart="true"
         android:layout_marginTop="8dp"
         android:layout_marginStart="8dp"
         android:orientation="horizontal"
         android:background="@drawable/bg_floating_controls"
+        android:padding="4dp"
         android:gravity="center"
         android:elevation="8dp">
 
         <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:src="@drawable/ic_arrow_back"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:tint="#FFFFFF"
@@ -52,10 +59,10 @@
 
         <ImageButton
             android:id="@+id/btnModeToggle"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_play"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@android:drawable/ic_popup_sync"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:tint="#AAAAAA" />
+            android:tint="#FFFFFF" />
     </LinearLayout>
 </RelativeLayout>

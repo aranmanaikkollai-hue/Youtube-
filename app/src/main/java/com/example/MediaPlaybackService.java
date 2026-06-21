@@ -9,6 +9,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.support.v4.media.MediaMetadataCompat;
@@ -33,6 +36,20 @@ public class MediaPlaybackService extends Service {
     private MediaSessionCompat mediaSession;
     private boolean isPlaying = false;
     private String currentTitle = "YouTube Music";
+
+    private AudioManager audioManager;
+    private AudioFocusRequest audioFocusRequest;
+    private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
+        switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_LOSS:
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                sendCmd(ACTION_CMD_PAUSE);
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN:
+                break;
+        }
+    };
 
     private BroadcastReceiver stateReceiver = new BroadcastReceiver() {
         @Override
@@ -94,6 +111,41 @@ public class MediaPlaybackService extends Service {
         sendBroadcast(new Intent(action));
     }
 
+    private void requestAudioFocus() {
+        if (audioManager == null) {
+            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        }
+        if (audioManager == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (audioFocusRequest == null) {
+                AudioAttributes playbackAttributes = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build();
+                audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                        .setAudioAttributes(playbackAttributes)
+                        .setAcceptsDelayedFocusGain(true)
+                        .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                        .build();
+            }
+            audioManager.requestAudioFocus(audioFocusRequest);
+        } else {
+            audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        }
+    }
+
+    private void abandonAudioFocus() {
+        if (audioManager == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (audioFocusRequest != null) {
+                audioManager.abandonAudioFocusRequest(audioFocusRequest);
+            }
+        } else {
+            audioManager.abandonAudioFocus(audioFocusChangeListener);
+        }
+    }
+
     private void updateMediaSession() {
         int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
         PlaybackStateCompat playbackState = new PlaybackStateCompat.Builder()
@@ -107,6 +159,12 @@ public class MediaPlaybackService extends Service {
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "YouTube")
                 .build();
         mediaSession.setMetadata(metadata);
+
+        if (isPlaying) {
+            requestAudioFocus();
+        } else {
+            abandonAudioFocus();
+        }
     }
 
     @Override
@@ -119,7 +177,11 @@ public class MediaPlaybackService extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceiver(stateReceiver);
-        mediaSession.release();
+        abandonAudioFocus();
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+        }
     }
 
     @Override
