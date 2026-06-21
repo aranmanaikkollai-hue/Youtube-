@@ -14,8 +14,24 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
             
+        </FrameLayout>
+
+        <!-- Container for native player -->
+        <FrameLayout
+            android:id="@+id/nativePlayerContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:elevation="6dp">
+            
+            <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+                android:id="@+id/youtubePlayerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center" />
+                
             <View
-                android:id="@+id/touchOverlay"
+                android:id="@+id/playerTouchOverlay"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone"
@@ -45,6 +61,15 @@
         android:background="@drawable/bg_floating_controls"
         android:gravity="center"
         android:elevation="8dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_arrow_back"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:tint="#FFFFFF"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/btnModeToggle"
