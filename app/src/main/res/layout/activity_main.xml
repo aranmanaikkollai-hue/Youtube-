@@ -16,28 +16,7 @@
             
         </FrameLayout>
 
-        <!-- Container for native player -->
-        <FrameLayout
-            android:id="@+id/nativePlayerContainer"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone"
-            android:elevation="6dp">
-            
-            <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
-                android:id="@+id/youtubePlayerView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center" />
-                
-            <View
-                android:id="@+id/playerTouchOverlay"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="gone"
-                android:clickable="true"
-                android:focusable="true"/>
-        </FrameLayout>
+
 
         <!-- Container for full-screen video -->
         <FrameLayout
@@ -78,13 +57,5 @@
             android:src="@android:drawable/ic_media_play"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:tint="#AAAAAA" />
-
-        <ImageButton
-            android:id="@+id/btnSettings"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_preferences"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:tint="#FFFFFF" />
     </LinearLayout>
 </RelativeLayout>
